@@ -4,7 +4,7 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn.functional as F
-from torch.distributions import Normal,Gumbel
+from torch.distributions import Normal
 import scipy.optimize as so
 import numpy as np
 
@@ -114,26 +114,27 @@ class GaussianDistribution(Distribution):
     def std(self) -> torch.Tensor:
         return self._std
 
-class GumbelDistribution(Distribution):
-        def __init__(self, loc, scale, raw_loc,
+class GumbelDistribution(GaussianDistribution):
+        def __init__(self, loc, std, raw_loc,
                      probs=None, temperature=1):
-
+            super().__init__(loc, std, raw_loc)
 
             self.probs = probs
             self.eps = 1e-20
             self.temperature = temperature
 
-            self._mean = loc
-            self._scale = scale
-            self._dist = Gumbel(self._mean, self._scale)
-
         def sample_gumbel(self):
-            return self._dist.rsample()
+            U = super().sample()
+            U.uniform_(0, 1)
+            to_gumbel =  -torch.log(-torch.log(U + self.eps) + self.eps)
+       #     raise Exception(to_gumbel)
+          #  U.uniform_(0, 1)
+            return to_gumbel
 
         def gumbel_softmax_sample(self):
             """ Draw a sample from the Gumbel-Softmax distribution. The returned sample will be a probability distribution
             that sums to 1 across classes"""
-            y = self.sample_gumbel()
+            y = super().sample() + self.sample_gumbel()
             return torch.softmax(y / self.temperature, dim=-1)
 
         def hard_gumbel_softmax_sample(self):
@@ -154,36 +155,15 @@ class GumbelDistribution(Distribution):
             return self.hard_gumbel_softmax_sample()
 
         def log_prob(self, y: torch.Tensor) -> torch.Tensor:
-
+            loc, scale = so.fmin(lambda p, x: (-torch.log(gumbel_pdf(y, p[0], p[1]))).sum(), [0.5, 0.5],
+                    args=(y,), disp = False)
            # loc, scale = torch.from_numpy(loc), torch.from_numpy(scale)
-            loc = self._mean
             scale = torch.from_numpy(np.array([scale])).cuda().float()
             y = (loc - y) / scale
             return (y - y.exp()) - torch.log(scale)
 
-        def mean_with_log_prob(self) -> Tuple[torch.Tensor, torch.Tensor]:
-            return self._mean, self.log_prob(self._mean)
 
-        def log_prob(self, y: torch.Tensor) -> torch.Tensor:
-            return self._dist.log_prob(y).sum(dim=-1, keepdims=True)
 
-        @property
-        def mean(self) -> torch.Tensor:
-            return self._mean
-
-        @property
-        def std(self) -> torch.Tensor:
-            return self._std
-
-        def sample_with_log_prob(self) -> Tuple[torch.Tensor, torch.Tensor]:
-            y = self.sample()
-            return y, self.log_prob(y)
-
-        def sample_n_with_log_prob(
-            self, n: int
-        ) -> Tuple[torch.Tensor, torch.Tensor]:
-            x = self.sample_n(n)
-            return x, self.log_prob(x)
 
 
 class SquashedGaussianDistribution(Distribution):
