@@ -249,6 +249,11 @@ def torch_api(
                         dtype = torch.uint8
                     else:
                         dtype = torch.float32
+                    #for v in val:
+                       # print("------")
+                       # print(v)
+                      #  print(v.dtype)
+                    #raise Exception(np.asarray(val), np.where(val==np.nan), val.shape, val.dtype)
                     tensor = torch.tensor(
                         data=val,
                         dtype=dtype,

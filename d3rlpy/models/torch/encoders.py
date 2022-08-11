@@ -330,7 +330,13 @@ class VectorEncoderWithAction(_VectorEncoder, EncoderWithAction):
             action = F.one_hot(
                 action.view(-1).long(), num_classes=self.action_size
             ).float()
-        x = torch.cat([x, action], dim=1)
+        #raise Exception(x.shape, action.shape)
+        try:
+            x = torch.cat([x, action], dim=1)
+        except:
+            one_hot = F.one_hot(action.to(torch.int64).view(-1), num_classes=self.action_size)
+            x = torch.cat([x, one_hot], dim=1)
+            #raise Exception(one_hot.shape, one_hot)
         h = self._fc_encode(x)
         if self._use_batch_norm:
             h = self._bns[-1](h)

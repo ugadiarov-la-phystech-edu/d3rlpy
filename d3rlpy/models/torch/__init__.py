@@ -20,6 +20,7 @@ from .imitators import (
 from .parameters import Parameter
 from .policies import (
     CategoricalPolicy,
+    GumbelPolicy,
     DeterministicPolicy,
     DeterministicResidualPolicy,
     NonSquashedNormalPolicy,

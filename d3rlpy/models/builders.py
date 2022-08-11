@@ -20,6 +20,7 @@ from .torch import (
     ProbabilisticEnsembleDynamicsModel,
     ProbablisticRegressor,
     SquashedNormalPolicy,
+    GumbelPolicy,
     ValueFunction,
 )
 
@@ -104,6 +105,24 @@ def create_squashed_normal_policy(
         min_logstd=min_logstd,
         max_logstd=max_logstd,
         use_std_parameter=use_std_parameter,
+    )
+
+def create_gumbel_policy(
+    observation_shape: Sequence[int],
+    action_size: int,
+    encoder_factory: EncoderFactory,
+    min_logstd: float = -20.0,
+    max_logstd: float = 2.0,
+    use_std_parameter: bool = False,
+) -> GumbelPolicy:
+    encoder = encoder_factory.create(observation_shape)
+    return GumbelPolicy(
+        encoder,
+        action_size,
+        min_logstd=min_logstd,
+        max_logstd=max_logstd,
+        use_std_parameter=use_std_parameter,
+        squash_distribution=False
     )
 
 

@@ -12,6 +12,7 @@ from ...models.builders import (
     create_discrete_q_function,
     create_parameter,
     create_squashed_normal_policy,
+    create_gumbel_policy
 )
 from ...models.encoders import EncoderFactory
 from ...models.optimizers import OptimizerFactory
@@ -160,6 +161,27 @@ class SACImpl(DDPGBaseImpl):
                 reduction="min",
             )
             return target - entropy
+
+class SDACImpl(SACImpl):
+    def _build_actor(self) -> None:
+        self._policy = create_gumbel_policy(
+            self._observation_shape,
+            self._action_size,
+            self._actor_encoder_factory,
+        )
+    # def _build_critic(self) -> None:
+    #     self._q_func = create_discrete_q_function(
+    #         self._observation_shape,
+    #         self._action_size,
+    #         self._critic_encoder_factory,
+    #         self._q_func_factory,
+    #         n_ensembles=self._n_critics,
+    #     )
+    # def _build_critic_optim(self) -> None:
+    #     assert self._q_func is not None
+    #     self._critic_optim = self._critic_optim_factory.create(
+    #         self._q_func.parameters(), lr=self._critic_learning_rate
+    #     )
 
 
 class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):

@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from torch import nn
 from torch.distributions import Categorical
 
-from .distributions import GaussianDistribution, SquashedGaussianDistribution
+from .distributions import GaussianDistribution, SquashedGaussianDistribution, GumbelDistribution
 from .encoders import Encoder, EncoderWithAction
 
 
@@ -252,6 +252,63 @@ class NormalPolicy(Policy):
         return self._min_logstd + logstd * base_logstd
 
 
+class GumbelPolicy(NormalPolicy):
+
+    _encoder: Encoder
+    _action_size: int
+    _min_logstd: float
+    _max_logstd: float
+    _use_std_parameter: bool
+    _mu: nn.Linear
+    _logstd: Union[nn.Linear, nn.Parameter]
+
+    def __init__(
+        self,
+        encoder: Encoder,
+        action_size: int,
+        min_logstd: float,
+        max_logstd: float,
+        use_std_parameter: bool,
+        squash_distribution: bool,
+    ):
+        super().__init__(encoder,action_size,min_logstd,max_logstd, use_std_parameter,squash_distribution)
+        self._action_size = action_size
+        self._encoder = encoder
+        self._min_logstd = min_logstd
+        self._max_logstd = max_logstd
+        self._use_std_parameter = use_std_parameter
+        self._squash_distribution = squash_distribution
+        self._mu = nn.Linear(encoder.get_feature_size(), action_size)
+        if use_std_parameter:
+            initial_logstd = torch.zeros(1, action_size, dtype=torch.float32)
+            self._logstd = nn.Parameter(initial_logstd)
+        else:
+            self._logstd = nn.Linear(encoder.get_feature_size(), action_size)
+
+    def _compute_logstd(self, h: torch.Tensor) -> torch.Tensor:
+        if self._use_std_parameter:
+            clipped_logstd = self.get_logstd_parameter()
+        else:
+            logstd = cast(nn.Linear, self._logstd)(h)
+            clipped_logstd = logstd.clamp(self._min_logstd, self._max_logstd)
+        return clipped_logstd
+
+    def dist(
+        self, x: torch.Tensor
+    ) -> Union[GaussianDistribution, SquashedGaussianDistribution]:
+        h = self._encoder(x)
+        mu = self._mu(h)
+        clipped_logstd = self._compute_logstd(h)
+
+        return GumbelDistribution(
+            torch.tanh(mu),
+            clipped_logstd.exp(),
+            raw_loc=mu,
+        )
+    def best_action(self, x: torch.Tensor) -> torch.Tensor:
+        return cast(torch.Tensor, self.forward(x, deterministic=True))
+
+
 class SquashedNormalPolicy(NormalPolicy):
     def __init__(
         self,
@@ -288,6 +345,7 @@ class NonSquashedNormalPolicy(NormalPolicy):
             use_std_parameter=use_std_parameter,
             squash_distribution=False,
         )
+
 
 
 class CategoricalPolicy(Policy):

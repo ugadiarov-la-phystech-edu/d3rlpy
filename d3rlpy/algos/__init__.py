@@ -15,7 +15,7 @@ from .mopo import MOPO
 from .nfq import NFQ
 from .plas import PLAS, PLASWithPerturbation
 from .random_policy import DiscreteRandomPolicy, RandomPolicy
-from .sac import SAC, DiscreteSAC
+from .sac import SAC, DiscreteSAC, SDAC
 from .td3 import TD3
 from .td3_plus_bc import TD3PlusBC
 

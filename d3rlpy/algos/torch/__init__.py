@@ -8,5 +8,5 @@ from .crr_impl import CRRImpl
 from .ddpg_impl import DDPGImpl
 from .dqn_impl import DoubleDQNImpl, DQNImpl
 from .plas_impl import PLASImpl, PLASWithPerturbationImpl
-from .sac_impl import DiscreteSACImpl, SACImpl
+from .sac_impl import DiscreteSACImpl, SACImpl, SDACImpl
 from .td3_impl import TD3Impl
