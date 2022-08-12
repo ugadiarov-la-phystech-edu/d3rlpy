@@ -410,7 +410,7 @@ class SDAC(AlgoBase):
         return metrics
 
     def get_action_type(self) -> ActionSpace:
-        return ActionSpace.DISCRETE
+        return ActionSpace.CONTINUOUS
 
 
 class DiscreteSAC(AlgoBase):

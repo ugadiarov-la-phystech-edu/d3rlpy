@@ -320,7 +320,7 @@ class GumbelPolicy(NormalPolicy):
         )
     def best_action(self, x: torch.Tensor) -> torch.Tensor:
         out =self.forward(x, deterministic=True)
-        out = torch.argmax(out, axis=1)
+       # out = torch.argmax(out, axis=1)
         return cast(torch.Tensor, out)
 
 
