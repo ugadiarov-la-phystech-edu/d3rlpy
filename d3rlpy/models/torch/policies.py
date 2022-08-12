@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.distributions import Categorical
-
+import numpy as np
 from .distributions import GaussianDistribution, SquashedGaussianDistribution, GumbelDistribution
 from .encoders import Encoder, EncoderWithAction
 
@@ -293,6 +293,19 @@ class GumbelPolicy(NormalPolicy):
             clipped_logstd = logstd.clamp(self._min_logstd, self._max_logstd)
         return clipped_logstd
 
+    def forward(
+        self,
+        x: torch.Tensor,
+        deterministic: bool = False,
+        with_log_prob: bool = False,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        dist = self.dist(x)
+        if deterministic:
+            action = dist.hard_sample()
+        else:
+            action, log_prob = dist.sample_with_log_prob()
+        return (action, log_prob) if with_log_prob else action
+
     def dist(
         self, x: torch.Tensor
     ) -> Union[GaussianDistribution, SquashedGaussianDistribution]:
@@ -306,7 +319,9 @@ class GumbelPolicy(NormalPolicy):
             raw_loc=mu,
         )
     def best_action(self, x: torch.Tensor) -> torch.Tensor:
-        return cast(torch.Tensor, self.forward(x, deterministic=True))
+        out =self.forward(x, deterministic=True)
+        out = torch.argmax(out, axis=1)
+        return cast(torch.Tensor, out)
 
 
 class SquashedNormalPolicy(NormalPolicy):
