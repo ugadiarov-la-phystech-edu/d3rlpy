@@ -1,11 +1,13 @@
 import copy
 import math
-from typing import Optional, Sequence, Tuple
-
 import numpy as np
 import torch
 from torch.optim import Optimizer
+from typing import Optional, Sequence, Tuple
 
+from .base import TorchImplBase
+from .ddpg_impl import DDPGBaseImpl
+from .utility import DiscreteQFunctionMixin
 from ...gpu import Device
 from ...models.builders import (
     create_categorical_policy,
@@ -27,9 +29,6 @@ from ...models.torch import (
 )
 from ...preprocessing import ActionScaler, RewardScaler, Scaler
 from ...torch_utility import TorchMiniBatch, hard_sync, torch_api, train_api
-from .base import TorchImplBase
-from .ddpg_impl import DDPGBaseImpl
-from .utility import DiscreteQFunctionMixin
 
 
 class SACImpl(DDPGBaseImpl):
@@ -119,6 +118,14 @@ class SACImpl(DDPGBaseImpl):
         action, log_prob = self._policy.sample_with_log_prob(batch.observations)
         entropy = self._log_temp().exp() * log_prob
         q_t = self._q_func(batch.observations, action, "min")
+
+        # print("log prob")
+        # print(torch.round(log_prob * 1000) / 1000)
+        # print("q_t")
+        # print(torch.round(q_t * 1000) / 1000)
+        # print("entropy")
+        # print(torch.round(entropy * 1000) / 1000)
+
         return (entropy - q_t).mean()
 
     @train_api
@@ -160,28 +167,8 @@ class SACImpl(DDPGBaseImpl):
                 action,
                 reduction="min",
             )
-            return target - entropy
+            return (target - entropy)
 
-class SDACImpl(SACImpl):
-    def _build_actor(self) -> None:
-        self._policy = create_gumbel_policy(
-            self._observation_shape,
-            self._action_size,
-            self._actor_encoder_factory,
-        )
-    # def _build_critic(self) -> None:
-    #     self._q_func = create_discrete_q_function(
-    #         self._observation_shape,
-    #         self._action_size,
-    #         self._critic_encoder_factory,
-    #         self._q_func_factory,
-    #         n_ensembles=self._n_critics,
-    #     )
-    # def _build_critic_optim(self) -> None:
-    #     assert self._q_func is not None
-    #     self._critic_optim = self._critic_optim_factory.create(
-    #         self._q_func.parameters(), lr=self._critic_learning_rate
-    #     )
 
 
 class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
@@ -446,3 +433,144 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
     def q_function_optim(self) -> Optimizer:
         assert self._critic_optim
         return self._critic_optim
+
+
+class SDACImpl(SACImpl):
+    #pass
+    def _build_actor(self) -> None:
+        self._policy = create_gumbel_policy(
+            self._observation_shape,
+            self._action_size,
+            self._actor_encoder_factory,
+        )
+
+    def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
+        assert self._policy is not None
+        assert self._log_temp is not None
+        assert self._targ_q_func is not None
+        with torch.no_grad():
+            action, log_prob = self._policy.sample_with_log_prob(
+                batch.next_observations
+            )
+            entropy = self._log_temp().exp() * log_prob
+            target = self._targ_q_func.compute_target(
+                batch.next_observations,
+                action,
+                reduction="min",
+            )
+            keepdims = True
+            return target - entropy
+    # def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
+    #     assert self._policy is not None
+    #     assert self._log_temp is not None
+    #     assert self._targ_q_funcq_func is not None
+    #     with torch.no_grad():
+    #         action, log_prob = self._policy.sample_with_log_prob(
+    #             batch.next_observations
+    #         )
+    #         entropy = self._log_temp().exp() * log_prob
+    #         target = self._targ_q_func.compute_target(
+    #             batch.next_observations,
+    #             action,
+    #             reduction="min",
+    #         )
+    #         return (target - entropy)
+
+    # def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
+    #     assert self._policy is not None
+    #     assert self._log_temp is not None
+    #     assert self._q_func is not None
+    #     action, log_prob = self._policy.sample_with_log_prob(batch.observations)
+    #     entropy = self._log_temp().exp() * log_prob
+    #     q_t = self._q_func(batch.observations, action, "min")
+    #
+    #     # print("log prob")
+    #     # print(torch.round(log_prob * 1000) / 1000)
+    #    # print("q_t")
+    #    # print(torch.round(q_t * 1000) / 1000)
+    #    #  print("entropy")
+    #    #  print(torch.round(entropy * 1000) / 1000)
+    #
+    #     return (entropy - q_t).mean()
+
+
+    # def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
+    #     assert self._policy is not None
+    #     assert self._log_temp is not None
+    #     assert self._q_func is not None
+    #     action, log_prob = self._policy.sample_with_log_prob(batch.observations)
+    #     entropy = self._log_temp().exp() * log_prob
+    #     q_t = self._q_func(batch.observations, action, "min")
+    #     return (entropy - q_t).mean()
+
+    # def _build_critic(self) -> None:
+    #     self._q_func = create_discrete_q_function(
+    #         self._observation_shape,
+    #         self._action_size,
+    #         self._critic_encoder_factory,
+    #         self._q_func_factory,
+    #         n_ensembles=self._n_critics,
+    #     )
+    # #
+    # def _build_critic_optim(self) -> None:
+    #     assert self._q_func is not None
+    #     self._critic_optim = self._critic_optim_factory.create(
+    #         self._q_func.parameters(), lr=self._critic_learning_rate
+    #     )
+    #
+    # def _build_actor_optim(self) -> None:
+    #     assert self._policy is not None
+    #     self._actor_optim = self._actor_optim_factory.create(
+    #         self._policy.parameters(), lr=self._actor_learning_rate
+    #     )
+    #
+    # # def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
+    # #     assert self._q_func is not None
+    # #     assert self._policy is not None
+    # #     assert self._log_temp is not None
+    # #     with torch.no_grad():
+    # #         q_t = self._q_func(batch.observations, reduction="min")
+    # #     log_probs = self._policy.log_probs(batch.observations)
+    # #     probs = log_probs.exp()
+    # #     entropy = self._log_temp().exp() * log_probs
+    # #
+    # #     # print(q_t)
+    # #     # print()
+    # #     # print(entropy)
+    # #     # print()
+    # #     # print(probs)
+    # #     return (probs * (entropy - q_t)).sum(dim=1).mean()
+    #
+    # def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
+    #     assert self._policy is not None
+    #     assert self._log_temp is not None
+    #     assert self._q_func is not None
+    #     with torch.no_grad():
+    #         q_t = self._q_func(batch.observations, "min")
+    #     log_prob, _ = self._policy.sample_with_log_prob(batch.observations)
+    #     probs = log_prob.exp()
+    #
+    #     entropy = self._log_temp().exp() * log_prob
+    #     out = (probs * (entropy - q_t)).sum(dim=1).mean()
+    #     # print(" ---------------------------- ")
+    #     # print((probs*1000).round()/1000)
+    #     # print((entropy*1000).round()/1000)
+    #     # print((q_t*1000).round()/1000)
+    #     # print(out)
+    #
+    #     return (probs * (entropy - q_t)).sum(dim=1).mean()
+    #
+    # def compute_critic_loss(
+    #     self,
+    #     batch: TorchMiniBatch,
+    #     q_tpn: torch.Tensor,
+    # ) -> torch.Tensor:
+    #     assert self._q_func is not None
+    #     return self._q_func.compute_error(
+    #         observations=batch.observations,
+    #         actions=batch.actions.long(),
+    #         rewards=batch.rewards,
+    #         target=q_tpn,
+    #         terminals=batch.terminals,
+    #         gamma=self._gamma ** batch.n_steps,
+    #     )

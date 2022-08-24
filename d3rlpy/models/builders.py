@@ -119,10 +119,6 @@ def create_gumbel_policy(
     return GumbelPolicy(
         encoder,
         action_size,
-        min_logstd=min_logstd,
-        max_logstd=max_logstd,
-        use_std_parameter=use_std_parameter,
-        squash_distribution=False
     )
 
 

@@ -10,6 +10,8 @@ import numpy as np
 from .distributions import GaussianDistribution, SquashedGaussianDistribution, GumbelDistribution
 from .encoders import Encoder, EncoderWithAction
 
+# import torch
+# torch.autograd.set_detect_anomaly(True)
 
 def squash_action(
     dist: torch.distributions.Distribution, raw_action: torch.Tensor
@@ -252,77 +254,6 @@ class NormalPolicy(Policy):
         return self._min_logstd + logstd * base_logstd
 
 
-class GumbelPolicy(NormalPolicy):
-
-    _encoder: Encoder
-    _action_size: int
-    _min_logstd: float
-    _max_logstd: float
-    _use_std_parameter: bool
-    _mu: nn.Linear
-    _logstd: Union[nn.Linear, nn.Parameter]
-
-    def __init__(
-        self,
-        encoder: Encoder,
-        action_size: int,
-        min_logstd: float,
-        max_logstd: float,
-        use_std_parameter: bool,
-        squash_distribution: bool,
-    ):
-        super().__init__(encoder,action_size,min_logstd,max_logstd, use_std_parameter,squash_distribution)
-        self._action_size = action_size
-        self._encoder = encoder
-        self._min_logstd = min_logstd
-        self._max_logstd = max_logstd
-        self._use_std_parameter = use_std_parameter
-        self._squash_distribution = squash_distribution
-        self._mu = nn.Linear(encoder.get_feature_size(), action_size)
-        if use_std_parameter:
-            initial_logstd = torch.zeros(1, action_size, dtype=torch.float32)
-            self._logstd = nn.Parameter(initial_logstd)
-        else:
-            self._logstd = nn.Linear(encoder.get_feature_size(), action_size)
-
-    def _compute_logstd(self, h: torch.Tensor) -> torch.Tensor:
-        if self._use_std_parameter:
-            clipped_logstd = self.get_logstd_parameter()
-        else:
-            logstd = cast(nn.Linear, self._logstd)(h)
-            clipped_logstd = logstd.clamp(self._min_logstd, self._max_logstd)
-        return clipped_logstd
-
-    def forward(
-        self,
-        x: torch.Tensor,
-        deterministic: bool = False,
-        with_log_prob: bool = False,
-    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        dist = self.dist(x)
-        if deterministic:
-            action = dist.hard_sample()
-        else:
-            action, log_prob = dist.sample_with_log_prob()
-        return (action, log_prob) if with_log_prob else action
-
-    def dist(
-        self, x: torch.Tensor
-    ) -> Union[GaussianDistribution, SquashedGaussianDistribution]:
-        h = self._encoder(x)
-        mu = self._mu(h)
-        clipped_logstd = self._compute_logstd(h)
-
-        return GumbelDistribution(
-            torch.tanh(mu),
-            clipped_logstd.exp(),
-            raw_loc=mu,
-        )
-    def best_action(self, x: torch.Tensor) -> torch.Tensor:
-        out =self.forward(x, deterministic=True)
-       # out = torch.argmax(out, axis=1)
-        return cast(torch.Tensor, out)
-
 
 class SquashedNormalPolicy(NormalPolicy):
     def __init__(
@@ -388,6 +319,7 @@ class CategoricalPolicy(Policy):
 
         if deterministic:
             action = cast(torch.Tensor, dist.probs.argmax(dim=1))
+         #   print(action)
         else:
             action = cast(torch.Tensor, dist.sample())
 
@@ -423,3 +355,68 @@ class CategoricalPolicy(Policy):
     def log_probs(self, x: torch.Tensor) -> torch.Tensor:
         dist = self.dist(x)
         return cast(torch.Tensor, dist.logits)
+
+
+class GumbelPolicy(CategoricalPolicy):
+
+    _encoder: Encoder
+    _action_size: int
+    _min_logstd: float
+    _max_logstd: float
+    _use_std_parameter: bool
+    _mu: nn.Linear
+    _logstd: Union[nn.Linear, nn.Parameter]
+
+    _encoder: Encoder
+    _fc: nn.Linear
+
+    def __init__(self, encoder: Encoder, action_size: int):
+        super().__init__(encoder, action_size)
+        self._encoder = encoder
+        self._fc = nn.Linear(encoder.get_feature_size(), action_size)
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        deterministic: bool = False,
+        with_log_prob: bool = False,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+
+        dist = self.dist(x)
+        if deterministic:
+            picked_actions = dist.hard_sample()
+        else:
+            picked_actions, log_prob = dist.sample_with_log_prob()
+        return (picked_actions, log_prob) if with_log_prob else picked_actions
+
+    def dist(
+        self, x: torch.Tensor
+    ) -> Union[GaussianDistribution, SquashedGaussianDistribution]:
+        h = self._encoder(x)
+        h = self._fc(h)
+        h = self.softmax(h)
+     #   print(h)
+        return GumbelDistribution(
+            h
+        )
+
+    def best_action(self, x: torch.Tensor) -> torch.Tensor:
+        out =self.forward(x, deterministic=True)
+       # out = torch.argmax(out, dim=1)
+        return cast(torch.Tensor, out)
+
+    def sample_n_with_log_prob(
+        self, x: torch.Tensor, n: int
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        pass
+
+    def sample_with_log_prob(
+        self, x: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        out = self.forward(x, with_log_prob=True)
+        return cast(Tuple[torch.Tensor, torch.Tensor], out)
+
+    def log_probs(self, x: torch.Tensor) -> torch.Tensor:
+        dist = self.dist(x)
+        return  dist.log_prob()

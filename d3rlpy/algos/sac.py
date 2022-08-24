@@ -220,45 +220,45 @@ class SAC(AlgoBase):
 class SDAC(AlgoBase):
     r"""Soft Actor-Critic algorithm.
 
-    SAC is a DDPG-based maximum entropy RL algorithm, which produces
-    state-of-the-art performance in online RL settings.
-    SAC leverages twin Q functions proposed in TD3. Additionally,
-    `delayed policy update` in TD3 is also implemented, which is not done in
-    the paper.
+        SAC is a DDPG-based maximum entropy RL algorithm, which produces
+        state-of-the-art performance in online RL settings.
+        SAC leverages twin Q functions proposed in TD3. Additionally,
+        `delayed policy update` in TD3 is also implemented, which is not done in
+        the paper.
 
-    .. math::
+        .. math::
 
-        L(\theta_i) = \mathbb{E}_{s_t,\, a_t,\, r_{t+1},\, s_{t+1} \sim D,\,
-                                   a_{t+1} \sim \pi_\phi(\cdot|s_{t+1})} \Big[
-            \big(y - Q_{\theta_i}(s_t, a_t)\big)^2\Big]
+            L(\theta_i) = \mathbb{E}_{s_t,\, a_t,\, r_{t+1},\, s_{t+1} \sim D,\,
+                                       a_{t+1} \sim \pi_\phi(\cdot|s_{t+1})} \Big[
+                \big(y - Q_{\theta_i}(s_t, a_t)\big)^2\Big]
 
-    .. math::
+        .. math::
 
-        y = r_{t+1} + \gamma \Big(\min_j Q_{\theta_j}(s_{t+1}, a_{t+1})
-            - \alpha \log \big(\pi_\phi(a_{t+1}|s_{t+1})\big)\Big)
+            y = r_{t+1} + \gamma \Big(\min_j Q_{\theta_j}(s_{t+1}, a_{t+1})
+                - \alpha \log \big(\pi_\phi(a_{t+1}|s_{t+1})\big)\Big)
 
-    .. math::
+        .. math::
 
-        J(\phi) = \mathbb{E}_{s_t \sim D,\, a_t \sim \pi_\phi(\cdot|s_t)}
-            \Big[\alpha \log (\pi_\phi (a_t|s_t))
-              - \min_i Q_{\theta_i}\big(s_t, \pi_\phi(a_t|s_t)\big)\Big]
+            J(\phi) = \mathbb{E}_{s_t \sim D,\, a_t \sim \pi_\phi(\cdot|s_t)}
+                \Big[\alpha \log (\pi_\phi (a_t|s_t))
+                  - \min_i Q_{\theta_i}\big(s_t, \pi_\phi(a_t|s_t)\big)\Big]
 
-    The temperature parameter :math:`\alpha` is also automatically adjustable.
+        The temperature parameter :math:`\alpha` is also automatically adjustable.
 
-    .. math::
+        .. math::
 
-        J(\alpha) = \mathbb{E}_{s_t \sim D,\, a_t \sim \pi_\phi(\cdot|s_t)}
-            \bigg[-\alpha \Big(\log \big(\pi_\phi(a_t|s_t)\big) + H\Big)\bigg]
+            J(\alpha) = \mathbb{E}_{s_t \sim D,\, a_t \sim \pi_\phi(\cdot|s_t)}
+                \bigg[-\alpha \Big(\log \big(\pi_\phi(a_t|s_t)\big) + H\Big)\bigg]
 
-    where :math:`H` is a target
-    entropy, which is defined as :math:`\dim a`.
+        where :math:`H` is a target
+        entropy, which is defined as :math:`\dim a`.
 
-    References:
-        * `Haarnoja et al., Soft Actor-Critic: Off-Policy Maximum Entropy Deep
-          Reinforcement Learning with a Stochastic Actor.
-          <https://arxiv.org/abs/1801.01290>`_
-        * `Haarnoja et al., Soft Actor-Critic Algorithms and Applications.
-          <https://arxiv.org/abs/1812.05905>`_
+        References:
+            * `Haarnoja et al., Soft Actor-Critic: Off-Policy Maximum Entropy Deep
+              Reinforcement Learning with a Stochastic Actor.
+              <https://arxiv.org/abs/1801.01290>`_
+            * `Haarnoja et al., Soft Actor-Critic Algorithms and Applications.
+              <https://arxiv.org/abs/1812.05905>`_
 
     Args:
         actor_learning_rate (float): learning rate for policy function.
@@ -294,7 +294,8 @@ class SDAC(AlgoBase):
             ``['clip', 'min_max', 'standard']``.
         impl (d3rlpy.algos.torch.sac_impl.SDACImpl): algorithm implementation.
 
-    """
+        """
+
 
     _actor_learning_rate: float
     _critic_learning_rate: float
@@ -410,7 +411,7 @@ class SDAC(AlgoBase):
         return metrics
 
     def get_action_type(self) -> ActionSpace:
-        return ActionSpace.CONTINUOUS
+        return ActionSpace.DISCRETE
 
 
 class DiscreteSAC(AlgoBase):
