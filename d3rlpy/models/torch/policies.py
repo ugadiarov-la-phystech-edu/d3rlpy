@@ -385,7 +385,7 @@ class GumbelPolicy(CategoricalPolicy):
 
         dist = self.dist(x)
         if deterministic:
-            picked_actions = dist.hard_sample()
+            picked_actions = dist.hard_sample().argmax(dim=1)
         else:
             picked_actions, log_prob = dist.sample_with_log_prob()
         return (picked_actions, log_prob) if with_log_prob else picked_actions

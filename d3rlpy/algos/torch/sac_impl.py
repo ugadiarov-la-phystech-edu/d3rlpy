@@ -459,7 +459,7 @@ class SDACImpl(SACImpl):
                 reduction="min",
             )
             keepdims = True
-            return target - entropy
+            return (target - entropy).mean(dim=1).reshape(-1,1)
     # def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
     #     assert self._policy is not None
     #     assert self._log_temp is not None
