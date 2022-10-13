@@ -385,9 +385,16 @@ class GumbelPolicy(CategoricalPolicy):
 
         dist = self.dist(x)
         if deterministic:
-            picked_actions = dist.hard_sample().argmax(dim=1)
+            picked_actions = dist.sample()
+            picked_actions_hard = (torch.max(picked_actions, dim=-1, keepdim=True)[0] == picked_actions).float()
+            picked_actions = (picked_actions_hard - picked_actions).detach() + picked_actions
+            picked_actions = picked_actions.argmax(axis = 1)
         else:
             picked_actions, log_prob = dist.sample_with_log_prob()
+            picked_actions_hard = (torch.max(picked_actions, dim=-1, keepdim=True)[0] == picked_actions).float()
+            picked_actions = (picked_actions_hard - picked_actions).detach() + picked_actions
+
+        #    print(picked_actions)
         return (picked_actions, log_prob) if with_log_prob else picked_actions
 
     def dist(
@@ -396,7 +403,11 @@ class GumbelPolicy(CategoricalPolicy):
         h = self._encoder(x)
         h = self._fc(h)
         h = self.softmax(h)
-     #   print(h)
+       #ь h = h4
+     #   plt.imshow()
+        #print(h)
+      #  print("_------------------------------_")
+       # print(h.max())
         return GumbelDistribution(
             h
         )
@@ -419,4 +430,4 @@ class GumbelPolicy(CategoricalPolicy):
 
     def log_probs(self, x: torch.Tensor) -> torch.Tensor:
         dist = self.dist(x)
-        return  dist.log_prob()
+        return cast(torch.Tensor, dist.logits)

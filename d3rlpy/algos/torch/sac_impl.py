@@ -29,7 +29,9 @@ from ...models.torch import (
 )
 from ...preprocessing import ActionScaler, RewardScaler, Scaler
 from ...torch_utility import TorchMiniBatch, hard_sync, torch_api, train_api
-
+#
+# import wandb
+# exp = wandb.init( project="sdac_test_cartpole_LOGPROB")
 
 class SACImpl(DDPGBaseImpl):
 
@@ -452,14 +454,81 @@ class SDACImpl(SACImpl):
             action, log_prob = self._policy.sample_with_log_prob(
                 batch.next_observations
             )
+            #print(log_prob.mean())
+            # exp.log({'log_prob_MEAN': log_prob.mean().item()})
+            # exp.log({'log_prob_MIN': log_prob.min().item()})
+            # exp.log({'log_prob_MAX': log_prob.max().item()})
+
             entropy = self._log_temp().exp() * log_prob
+
+            # exp.log({'entropy_MEAN':entropy.mean().item()})
+            # exp.log({'entropy_MIN': entropy.min().item()})
+            # exp.log({'entropy_MAX': entropy.max().item()})
+
             target = self._targ_q_func.compute_target(
                 batch.next_observations,
                 action,
                 reduction="min",
             )
+            # exp.log({'target_MEAN': target.mean().item()})
+            # exp.log({'target_MIN': target.min().item()})
+            # exp.log({'target_MAX': target.max().item()})
             keepdims = True
             return (target - entropy).mean(dim=1).reshape(-1,1)
+
+    def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
+        assert self._policy is not None
+        assert self._log_temp is not None
+        assert self._q_func is not None
+        action, log_prob = self._policy.sample_with_log_prob(batch.observations)
+        entropy = self._log_temp().exp() * log_prob
+        q_t = self._q_func(batch.observations, action, "min")
+
+        # exp.log({'qt_MEAN_actor_loss': q_t.mean().item()})
+        # exp.log({'qt_MIN_actor_loss': q_t.min().item()})
+        # exp.log({'qt_MAX_actor_loss': q_t.max().item()})
+        #
+        # exp.log({'entropy_MEAN_actor_loss': entropy.mean().item()})
+        # exp.log({'entropy_MIN_actor_loss': entropy.min().item()})
+        # exp.log({'entropy_MAX_actor_loss': entropy.max().item()})
+        #
+        # exp.log({'temp_MEAN_actor_loss':  self._log_temp().exp().mean()})
+        # exp.log({'temp_MIN_actor_loss':  self._log_temp().exp().min()})
+        # exp.log({'temp_MAX_actor_loss':  self._log_temp().exp().max()})
+        return (entropy - q_t).mean()
+
+    # def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
+    #     assert self._policy is not None
+    #     assert self._log_temp is not None
+    #     assert self._targ_q_func is not None
+    #     with torch.no_grad():
+    #         action, log_prob = self._policy.sample_with_log_prob(
+    #             batch.next_observations
+    #         )
+    #         entropy = self._log_temp().exp() * log_prob
+    #         target = self._targ_q_func.compute_target(
+    #             batch.next_observations,
+    #             action,
+    #             reduction="min",
+    #         )
+    #         return (target - entropy)
+
+    # def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
+    #     assert self._policy is not None
+    #     assert self._log_temp is not None
+    #     assert self._targ_q_func is not None
+    #     with torch.no_grad():
+    #         action, log_prob = self._policy.sample_with_log_prob(
+    #             batch.next_observations
+    #         )
+    #         entropy = self._log_temp().exp() * log_prob
+    #         target = self._targ_q_func.compute_target(
+    #             batch.next_observations,
+    #             action,
+    #             reduction="min",
+    #         )
+    #         keepdims = True
+    #         return (target - entropy).mean(dim=1).reshape(-1,1)
     # def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
     #     assert self._policy is not None
     #     assert self._log_temp is not None

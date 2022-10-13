@@ -7,6 +7,7 @@ from torch.distributions import Normal
 import scipy.optimize as so
 import numpy as np
 import datetime
+from torch.distributions.utils import probs_to_logits
 
 def p_print(data):
     now = datetime.datetime.now()
@@ -122,25 +123,29 @@ class GaussianDistribution(Distribution):
         return self._std
 
 class GumbelDistribution(Distribution):
-        def __init__(self, logits,
-                     probs=None, temperature=1):
+        def __init__(self, probs,
+                     logits=None, temperature=1):
             super().__init__()
-            self.logits = logits
+            if logits is not None:
+                self.logits = logits
             self.probs = probs
             self.eps = 1e-20
             self.temperature = 1
 
         def sample_gumbel(self):
-            U = torch.zeros_like(self.logits)
-            U.uniform_(0, 1)
+            U = torch.zeros_like(self.probs)
+            U.uniform_(0, 0.7)
             to_gumbel = -torch.log(-torch.log(U + self.eps) + self.eps)
             return to_gumbel
 
         def gumbel_softmax_sample(self, logits = None):
             """ Draw a sample from the Gumbel-Softmax distribution. The returned sample will be a probability distribution
             that sums to 1 across classes"""
-            y = self.logits + self.sample_gumbel()
+          #  print(torch.round(self.probs*1000)/1000)
+            y = self.probs + self.sample_gumbel()
             out = torch.softmax(y / self.temperature, dim=-1)
+
+        #    print(torch.round(out*1000)/1000)
             return out
 
         def sample_with_log_prob(self) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -171,40 +176,15 @@ class GumbelDistribution(Distribution):
             out = self.hard_gumbel_softmax_sample()
             return out
 
-        def log_prob(self) -> torch.Tensor:
+        @property
+        def logits(self):
             y = self.sample()
+            return probs_to_logits(y)
+
+        def log_prob(self) -> torch.Tensor:
+            y = self.sample().max(axis = 1).values
+         #   print(y.shape)
             return torch.log(y + self.eps)
-
-            # gss = self.rsample()
-           #  gss = self.logits
-
-             #p_print(self.logits.shape)
-             #print("GSS")
-            # p_print(torch.round(gss * 1000) / 1000)
-          #   out = torch.log(cast(torch.Tensor, gss))
-
-             #print("out of log")
-
-           #  print("after sum")
-           #  print(torch.round(out.sum(dim=-1, keepdims=True) * 1000) / 1000)
-          #   return out.sum(dim=-1, keepdims=True)
-        #  #  U = y.copy()
-        #   # y.uniform_(0, 1)
-        #    y = y + self.sample_gumbel(logits = y)
-        #
-        #    y = torch.softmax(y / self.temperature, dim=-1)
-        #   # out = torch.log(y)
-        #  #  y = -torch.log(-torch.log(y + self.eps) + self.eps)
-        #  #   loc, scale = so.fmin(lambda p, x: (-torch.log(gumbel_pdf(y, p[0], p[1]))).sum(), [0.5, 0.5],
-        #  #                        args=(y,), disp=False)
-        #  #   #loc, scale = torch.from_numpy(loc), torch.from_numpy(scale)
-        #  #   scale = torch.from_numpy(np.array([scale])).cuda().float()
-        #  #   y = (loc - y) / scale
-        #  #   out = (y - y.exp()) - torch.log(scale)
-        #    p_print(y)
-        #    return (y.sum(dim=-1, keepdims=True))
-
-
 
 
 
