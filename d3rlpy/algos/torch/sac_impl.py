@@ -2,6 +2,7 @@ import copy
 import math
 import numpy as np
 import torch
+from torch import nn
 from torch.optim import Optimizer
 from typing import Optional, Sequence, Tuple
 
@@ -86,6 +87,7 @@ class SACImpl(DDPGBaseImpl):
         self._temp_learning_rate = temp_learning_rate
         self._temp_optim_factory = temp_optim_factory
         self._initial_temperature = initial_temperature
+        self.kl_criterion = nn.KLDivLoss(reduction='batchmean')
 
         # initialized in build
         self._log_temp = None
@@ -390,6 +392,7 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
             log_probs = self._policy.log_probs(batch.observations)
             probs = log_probs.exp()
             expct_log_probs = (probs * log_probs).sum(dim=1, keepdim=True)
+           # print(expct_log_probs)
             entropy_target = 0.98 * (-math.log(1 / self.action_size))
             targ_temp = expct_log_probs + entropy_target
 
@@ -445,7 +448,42 @@ class SDACImpl(SACImpl):
             self._action_size,
             self._actor_encoder_factory,
         )
+        
+    def _build_critic(self) -> None:
+        self._q_func = create_discrete_q_function(
+            self._observation_shape,
+            self._action_size,
+            self._critic_encoder_factory,
+            self._q_func_factory,
+            n_ensembles=self._n_critics,
+        )
+        
+    @train_api
+    @torch_api()
+    def update_temp(self, batch: TorchMiniBatch) -> np.ndarray:
+        assert self._temp_optim is not None
+        assert self._policy is not None
+        assert self._log_temp is not None
 
+        self._temp_optim.zero_grad()
+
+        with torch.no_grad():
+            log_probs = self._policy.log_probs(batch.observations)
+            probs = log_probs.exp()
+            expct_log_probs = (probs * log_probs).sum(dim=1, keepdim=True)
+            entropy_target = 0.98 * (-math.log(1 / self.action_size))
+            targ_temp = expct_log_probs + entropy_target
+
+        loss = -(self._log_temp().exp() * targ_temp).mean()
+
+        loss.backward()
+        self._temp_optim.step()
+
+        # current temperature value
+        cur_temp = self._log_temp().exp().cpu().detach().numpy()[0][0]
+
+        return loss.cpu().detach().numpy(), cur_temp
+    
     def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
         assert self._policy is not None
         assert self._log_temp is not None
@@ -475,27 +513,52 @@ class SDACImpl(SACImpl):
             # exp.log({'target_MAX': target.max().item()})
             keepdims = True
             return (target - entropy).mean(dim=1).reshape(-1,1)
-
+        
     def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
-        assert self._policy is not None
-        assert self._log_temp is not None
-        assert self._q_func is not None
-        action, log_prob = self._policy.sample_with_log_prob(batch.observations)
-        entropy = self._log_temp().exp() * log_prob
-        q_t = self._q_func(batch.observations, action, "min")
-
-        # exp.log({'qt_MEAN_actor_loss': q_t.mean().item()})
-        # exp.log({'qt_MIN_actor_loss': q_t.min().item()})
-        # exp.log({'qt_MAX_actor_loss': q_t.max().item()})
-        #
-        # exp.log({'entropy_MEAN_actor_loss': entropy.mean().item()})
-        # exp.log({'entropy_MIN_actor_loss': entropy.min().item()})
-        # exp.log({'entropy_MAX_actor_loss': entropy.max().item()})
-        #
-        # exp.log({'temp_MEAN_actor_loss':  self._log_temp().exp().mean()})
-        # exp.log({'temp_MIN_actor_loss':  self._log_temp().exp().min()})
-        # exp.log({'temp_MAX_actor_loss':  self._log_temp().exp().max()})
-        return (entropy - q_t).mean()
+            assert self._q_func is not None
+            assert self._policy is not None
+            assert self._log_temp is not None
+            with torch.no_grad():
+                q_t = self._q_func(batch.observations, reduction="min")
+            log_probs = self._policy.log_probs(batch.observations)
+            probs = log_probs.exp()
+            entropy = self._log_temp().exp() * log_probs
+            #print(q_t.shape)
+           # print(batch.actions.shape)
+            one_hot = torch.zeros((len(batch.actions.long()), q_t.shape[-1]))
+            one_hot.scatter_(1, batch.actions.long().unsqueeze(1), 1)
+           # print(q_t)
+            kl_loss = self.kl_criterion(probs, one_hot)
+            loss = (probs * (entropy - q_t)).sum(dim=1).mean()
+            #print(kl_loss, loss)
+            return loss + kl_loss
+        
+        ####LAST VERSION
+#     def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
+#         assert self._policy is not None
+#         assert self._log_temp is not None
+#         assert self._q_func is not None
+#         action, log_prob = self._policy.sample_with_log_prob(batch.observations)
+#         entropy = self._log_temp().exp() * log_prob
+#       #  print(batch.observations.shape)
+#        # print(action.shape)
+#         q_t = self._q_func(batch.observations, action)
+#        # print(q_t.shape)
+#        # print(entropy.shape)
+#         entropy = entropy.reshape(-1,1)
+#      #   exit()
+#         # exp.log({'qt_MEAN_actor_loss': q_t.mean().item()})
+#         # exp.log({'qt_MIN_actor_loss': q_t.min().item()})
+#         # exp.log({'qt_MAX_actor_loss': q_t.max().item()})
+#         #
+#         # exp.log({'entropy_MEAN_actor_loss': entropy.mean().item()})
+#         # exp.log({'entropy_MIN_actor_loss': entropy.min().item()})
+#         # exp.log({'entropy_MAX_actor_loss': entropy.max().item()})
+#         #
+#         # exp.log({'temp_MEAN_actor_loss':  self._log_temp().exp().mean()})
+#         # exp.log({'temp_MIN_actor_loss':  self._log_temp().exp().min()})
+#         # exp.log({'temp_MAX_actor_loss':  self._log_temp().exp().max()})
+#         return (entropy - q_t).mean()
 
     # def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
     #     assert self._policy is not None
@@ -629,17 +692,17 @@ class SDACImpl(SACImpl):
     #
     #     return (probs * (entropy - q_t)).sum(dim=1).mean()
     #
-    # def compute_critic_loss(
-    #     self,
-    #     batch: TorchMiniBatch,
-    #     q_tpn: torch.Tensor,
-    # ) -> torch.Tensor:
-    #     assert self._q_func is not None
-    #     return self._q_func.compute_error(
-    #         observations=batch.observations,
-    #         actions=batch.actions.long(),
-    #         rewards=batch.rewards,
-    #         target=q_tpn,
-    #         terminals=batch.terminals,
-    #         gamma=self._gamma ** batch.n_steps,
-    #     )
+    def compute_critic_loss(
+        self,
+        batch: TorchMiniBatch,
+        q_tpn: torch.Tensor,
+    ) -> torch.Tensor:
+        assert self._q_func is not None
+        return self._q_func.compute_error(
+            observations=batch.observations,
+            actions=batch.actions.long(),
+            rewards=batch.rewards,
+            target=q_tpn,
+            terminals=batch.terminals,
+            gamma=self._gamma ** batch.n_steps,
+        )

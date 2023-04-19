@@ -354,6 +354,7 @@ class SDAC(AlgoBase):
         self._actor_optim_factory = actor_optim_factory
         self._critic_optim_factory = critic_optim_factory
         self._temp_optim_factory = temp_optim_factory
+        print(actor_encoder_factory)
         self._actor_encoder_factory = check_encoder(actor_encoder_factory)
         self._critic_encoder_factory = check_encoder(critic_encoder_factory)
         self._q_func_factory = check_q_func(q_func_factory)

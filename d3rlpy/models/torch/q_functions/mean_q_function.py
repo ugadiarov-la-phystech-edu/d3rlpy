@@ -21,7 +21,9 @@ class DiscreteMeanQFunction(DiscreteQFunction, nn.Module):  # type: ignore
         self._fc = nn.Linear(encoder.get_feature_size(), action_size)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return cast(torch.Tensor, self._fc(self._encoder(x)))
+        res = cast(torch.Tensor, self._fc(self._encoder(x)))
+       # print ("out: ", res.shape)
+        return res
 
     def compute_error(
         self,
@@ -46,6 +48,9 @@ class DiscreteMeanQFunction(DiscreteQFunction, nn.Module):  # type: ignore
     ) -> torch.Tensor:
         if action is None:
             return self.forward(x)
+        if len(action.shape) > 1:
+            action  = torch.argmax(action, axis = 1)
+           # print("new act shape:", action.shape)
         return pick_value_by_action(self.forward(x), action, keepdim=True)
 
     @property

@@ -134,23 +134,30 @@ class GumbelDistribution(Distribution):
 
         def sample_gumbel(self):
             U = torch.zeros_like(self.probs)
-            U.uniform_(0, 0.7)
+            U.uniform_(0, 0.5)
+           # exit()
             to_gumbel = -torch.log(-torch.log(U + self.eps) + self.eps)
+          #  print(to_gumbel.argmax(dim = 1))
             return to_gumbel
 
         def gumbel_softmax_sample(self, logits = None):
             """ Draw a sample from the Gumbel-Softmax distribution. The returned sample will be a probability distribution
             that sums to 1 across classes"""
           #  print(torch.round(self.probs*1000)/1000)
+           # print(self.probs)
+          #  print(self.probs.argmax(dim = 1))
             y = self.probs + self.sample_gumbel()
+          #  print(y.argmax(dim = 1))
             out = torch.softmax(y / self.temperature, dim=-1)
-
+          #  print(out.argmax(dim = 1))
         #    print(torch.round(out*1000)/1000)
             return out
 
         def sample_with_log_prob(self) -> Tuple[torch.Tensor, torch.Tensor]:
             y = self.rsample()
-            return y, self.log_prob()
+            lp = self.log_prob()
+          #  print(lp)
+            return y, lp
 
         def hard_gumbel_softmax_sample(self):
             y = self.gumbel_softmax_sample()
@@ -178,13 +185,21 @@ class GumbelDistribution(Distribution):
 
         @property
         def logits(self):
-            y = self.sample()
-            return probs_to_logits(y)
+          #  y = self.sample()
+            #y = self.sample().max(axis = 1).values
+            return self.probs#.max(axis = 1).values.reshape(-1,1)
 
-        def log_prob(self) -> torch.Tensor:
+        @property
+        def logitss(self):
             y = self.sample().max(axis = 1).values
          #   print(y.shape)
             return torch.log(y + self.eps)
+        
+        def log_prob(self):
+           # y = self.sample().max(axis = 1).values
+         #   print(y.shape)
+            #raise Exception(self.probs)
+            return  self.probs#.max(axis = 1).values.reshape(-1,1)#.detach() #torch.log(y + self.eps)
 
 
 

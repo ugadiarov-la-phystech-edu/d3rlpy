@@ -15,6 +15,7 @@ def pick_value_by_action(
     except Exception as e:
         raise Exception((e, action))
     masked_values = values * cast(torch.Tensor, one_hot.float())
+ #   print("MV: ", masked_values.sum(dim=1, keepdim=keepdim).shape)
     return masked_values.sum(dim=1, keepdim=keepdim)
 
 

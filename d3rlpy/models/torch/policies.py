@@ -9,7 +9,7 @@ from torch.distributions import Categorical
 import numpy as np
 from .distributions import GaussianDistribution, SquashedGaussianDistribution, GumbelDistribution
 from .encoders import Encoder, EncoderWithAction
-
+#import wandb
 # import torch
 # torch.autograd.set_detect_anomaly(True)
 
@@ -374,7 +374,7 @@ class GumbelPolicy(CategoricalPolicy):
         super().__init__(encoder, action_size)
         self._encoder = encoder
         self._fc = nn.Linear(encoder.get_feature_size(), action_size)
-        self.softmax = nn.Softmax(dim=1)
+        self.softmax = nn.LogSoftmax(dim=1)
 
     def forward(
         self,
@@ -382,30 +382,45 @@ class GumbelPolicy(CategoricalPolicy):
         deterministic: bool = False,
         with_log_prob: bool = False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-
+        
+       # print("Policy forward!")
         dist = self.dist(x)
         if deterministic:
             picked_actions = dist.sample()
-            picked_actions_hard = (torch.max(picked_actions, dim=-1, keepdim=True)[0] == picked_actions).float()
-            picked_actions = (picked_actions_hard - picked_actions).detach() + picked_actions
+           # print(picked_actions)
+           # picked_actions_hard = (torch.max(picked_actions, dim=-1, keepdim=True)[0] == picked_actions).float()
+           # picked_actions = (picked_actions_hard - picked_actions).detach() + picked_actions
+           # print(picked_actions.argmax(axis = 1))
+           # wandb.log({"log_picked_actions_determ":picked_actions.argmax(axis = 1)})
             picked_actions = picked_actions.argmax(axis = 1)
+           # print(picked_actions)
         else:
             picked_actions, log_prob = dist.sample_with_log_prob()
-            picked_actions_hard = (torch.max(picked_actions, dim=-1, keepdim=True)[0] == picked_actions).float()
-            picked_actions = (picked_actions_hard - picked_actions).detach() + picked_actions
-
+          #  picked_actions_hard = (torch.max(picked_actions, dim=-1, keepdim=True)[0] == picked_actions).float()
+          #  picked_actions = (picked_actions_hard - picked_actions).detach() + picked_actions
+           # print(picked_actions.argmax(axis = 1))
+          #  wandb.log({"log_picked_actions_determ":picked_actions.argmax(axis = 1)})
+                
         #    print(picked_actions)
         return (picked_actions, log_prob) if with_log_prob else picked_actions
 
     def dist(
         self, x: torch.Tensor
     ) -> Union[GaussianDistribution, SquashedGaussianDistribution]:
+       # print(x)
         h = self._encoder(x)
         h = self._fc(h)
+      #  print(h)
         h = self.softmax(h)
+      #  print(h)
+        #print(h[0])
+        #wandb.log({"log-softmax out":h[0]})
+       # print(h.shape)
+     #   print(h.max())
        #ь h = h4
      #   plt.imshow()
-        #print(h)
+       # print(torch.sort(h)[:3])
+       # print(h.sum(axis = 1))
       #  print("_------------------------------_")
        # print(h.max())
         return GumbelDistribution(

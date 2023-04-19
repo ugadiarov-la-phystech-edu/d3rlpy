@@ -13,8 +13,8 @@ def _reduce_ensemble(
         return y.min(dim=dim).values
     elif reduction == "max":
         return y.max(dim=dim).values
-    elif reduction == "mean":
-        return y.mean(dim=dim)
+    elif True: #reduction == "mean":
+        return y.mean(dim=0)
     elif reduction == "none":
         return y
     elif reduction == "mix":
@@ -143,6 +143,7 @@ class EnsembleDiscreteQFunction(EnsembleQFunction):
         values = []
         for q_func in self._q_funcs:
             values.append(q_func(x).view(1, x.shape[0], self._action_size))
+       # print("ens", values[0].shape)
         return _reduce_ensemble(torch.cat(values, dim=0), reduction)
 
     def __call__(
