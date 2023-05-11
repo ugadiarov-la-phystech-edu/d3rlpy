@@ -121,7 +121,7 @@ class SACImpl(DDPGBaseImpl):
         assert self._q_func is not None
         action, log_prob = self._policy.sample_with_log_prob(batch.observations)
         entropy = self._log_temp().exp() * log_prob
-        q_t = self._q_func(batch.observations, action, "min")
+        q_t = self._q_func(batch.observations, action, "max")
 
         # print("log prob")
         # print(torch.round(log_prob * 1000) / 1000)
@@ -442,13 +442,18 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
 
 class SDACImpl(SACImpl):
     #pass
+    def __init__(self, uniform_treshs = (0, 1), **args):
+        super().__init__(**args)
+        self.uniform_treshs = uniform_treshs
+
     def _build_actor(self) -> None:
         self._policy = create_gumbel_policy(
             self._observation_shape,
             self._action_size,
             self._actor_encoder_factory,
+            uniform_treshs = self.uniform_treshs
         )
-        
+
     def _build_critic(self) -> None:
         self._q_func = create_discrete_q_function(
             self._observation_shape,
@@ -457,7 +462,7 @@ class SDACImpl(SACImpl):
             self._q_func_factory,
             n_ensembles=self._n_critics,
         )
-        
+
     @train_api
     @torch_api()
     def update_temp(self, batch: TorchMiniBatch) -> np.ndarray:
@@ -483,7 +488,7 @@ class SDACImpl(SACImpl):
         cur_temp = self._log_temp().exp().cpu().detach().numpy()[0][0]
 
         return loss.cpu().detach().numpy(), cur_temp
-    
+
     def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
         assert self._policy is not None
         assert self._log_temp is not None
@@ -513,7 +518,7 @@ class SDACImpl(SACImpl):
             # exp.log({'target_MAX': target.max().item()})
             keepdims = True
             return (target - entropy).mean(dim=1).reshape(-1,1)
-        
+
     def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
             assert self._q_func is not None
             assert self._policy is not None
@@ -532,7 +537,7 @@ class SDACImpl(SACImpl):
             loss = (probs * (entropy - q_t)).sum(dim=1).mean()
             #print(kl_loss, loss)
             return loss + kl_loss
-        
+
         ####LAST VERSION
 #     def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
 #         assert self._policy is not None

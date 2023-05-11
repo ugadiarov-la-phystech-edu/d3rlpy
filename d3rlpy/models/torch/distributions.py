@@ -123,7 +123,7 @@ class GaussianDistribution(Distribution):
         return self._std
 
 class GumbelDistribution(Distribution):
-        def __init__(self, probs,
+        def __init__(self, probs,uniform_treshs,
                      logits=None, temperature=1):
             super().__init__()
             if logits is not None:
@@ -131,10 +131,11 @@ class GumbelDistribution(Distribution):
             self.probs = probs
             self.eps = 1e-20
             self.temperature = 1
+            self.uniform_treshs = uniform_treshs
 
         def sample_gumbel(self):
             U = torch.zeros_like(self.probs)
-            U.uniform_(0, 0.5)
+            U.uniform_(*self.uniform_treshs)
            # exit()
             to_gumbel = -torch.log(-torch.log(U + self.eps) + self.eps)
           #  print(to_gumbel.argmax(dim = 1))
@@ -194,7 +195,7 @@ class GumbelDistribution(Distribution):
             y = self.sample().max(axis = 1).values
          #   print(y.shape)
             return torch.log(y + self.eps)
-        
+
         def log_prob(self):
            # y = self.sample().max(axis = 1).values
          #   print(y.shape)

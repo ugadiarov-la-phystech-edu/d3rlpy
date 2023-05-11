@@ -111,6 +111,7 @@ def create_gumbel_policy(
     observation_shape: Sequence[int],
     action_size: int,
     encoder_factory: EncoderFactory,
+    uniform_treshs: tuple,
     min_logstd: float = -20.0,
     max_logstd: float = 2.0,
     use_std_parameter: bool = False,
@@ -119,6 +120,7 @@ def create_gumbel_policy(
     return GumbelPolicy(
         encoder,
         action_size,
+        uniform_treshs
     )
 
 

@@ -370,11 +370,15 @@ class GumbelPolicy(CategoricalPolicy):
     _encoder: Encoder
     _fc: nn.Linear
 
-    def __init__(self, encoder: Encoder, action_size: int):
+    def __init__(self, encoder: Encoder, action_size: int, uniform_treshs: tuple):
         super().__init__(encoder, action_size)
         self._encoder = encoder
+        self._relu = nn.ReLU()
+
         self._fc = nn.Linear(encoder.get_feature_size(), action_size)
+        self._bn = nn.BatchNorm1d(action_size)
         self.softmax = nn.LogSoftmax(dim=1)
+        self.uniform_treshs = uniform_treshs
 
     def forward(
         self,
@@ -382,7 +386,7 @@ class GumbelPolicy(CategoricalPolicy):
         deterministic: bool = False,
         with_log_prob: bool = False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        
+
        # print("Policy forward!")
         dist = self.dist(x)
         if deterministic:
@@ -400,7 +404,7 @@ class GumbelPolicy(CategoricalPolicy):
           #  picked_actions = (picked_actions_hard - picked_actions).detach() + picked_actions
            # print(picked_actions.argmax(axis = 1))
           #  wandb.log({"log_picked_actions_determ":picked_actions.argmax(axis = 1)})
-                
+
         #    print(picked_actions)
         return (picked_actions, log_prob) if with_log_prob else picked_actions
 
@@ -409,7 +413,9 @@ class GumbelPolicy(CategoricalPolicy):
     ) -> Union[GaussianDistribution, SquashedGaussianDistribution]:
        # print(x)
         h = self._encoder(x)
+     #   h = self._relu(h)
         h = self._fc(h)
+       # h = self._bn(h)
       #  print(h)
         h = self.softmax(h)
       #  print(h)
@@ -424,7 +430,7 @@ class GumbelPolicy(CategoricalPolicy):
       #  print("_------------------------------_")
        # print(h.max())
         return GumbelDistribution(
-            h
+            h, self.uniform_treshs
         )
 
     def best_action(self, x: torch.Tensor) -> torch.Tensor:
