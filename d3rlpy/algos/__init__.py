@@ -41,6 +41,7 @@ __all__ = [
     "PLASWithPerturbation",
     "SAC",
     "DiscreteSAC",
+    "SDAC",
     "TD3",
     "TD3PlusBC",
     "RandomPolicy",
@@ -58,6 +59,7 @@ DISCRETE_ALGORITHMS: Dict[str, Type[AlgoBase]] = {
     "double_dqn": DoubleDQN,
     "nfq": NFQ,
     "sac": DiscreteSAC,
+    "sdac": SDAC,
     "random": DiscreteRandomPolicy,
 }
 
