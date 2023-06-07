@@ -119,15 +119,8 @@ class SACImpl(DDPGBaseImpl):
         assert self._q_func is not None
         action, log_prob = self._policy.sample_with_log_prob(batch.observations)
         entropy = self._log_temp().exp() * log_prob
-        q_t = self._q_func(batch.observations, action, "max")
-
-        # print("log prob")
-        # print(torch.round(log_prob * 1000) / 1000)
-        # print("q_t")
-        # print(torch.round(q_t * 1000) / 1000)
-        # print("entropy")
-        # print(torch.round(entropy * 1000) / 1000)
-
+        # FIXME: origin: min, zoya set: max
+        q_t = self._q_func(batch.observations, action, "min")
         return (entropy - q_t).mean()
 
     @train_api
@@ -169,8 +162,7 @@ class SACImpl(DDPGBaseImpl):
                 action,
                 reduction="min",
             )
-            return (target - entropy)
-
+            return target - entropy
 
 
 class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
