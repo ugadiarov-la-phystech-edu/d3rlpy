@@ -9,9 +9,7 @@ from torch.distributions import Categorical
 import numpy as np
 from .distributions import GaussianDistribution, SquashedGaussianDistribution, GumbelDistribution
 from .encoders import Encoder, EncoderWithAction
-#import wandb
-# import torch
-# torch.autograd.set_detect_anomaly(True)
+
 
 def squash_action(
     dist: torch.distributions.Distribution, raw_action: torch.Tensor
@@ -254,7 +252,6 @@ class NormalPolicy(Policy):
         return self._min_logstd + logstd * base_logstd
 
 
-
 class SquashedNormalPolicy(NormalPolicy):
     def __init__(
         self,
@@ -293,7 +290,6 @@ class NonSquashedNormalPolicy(NormalPolicy):
         )
 
 
-
 class CategoricalPolicy(Policy):
 
     _encoder: Encoder
@@ -319,7 +315,6 @@ class CategoricalPolicy(Policy):
 
         if deterministic:
             action = cast(torch.Tensor, dist.probs.argmax(dim=1))
-         #   print(action)
         else:
             action = cast(torch.Tensor, dist.sample())
 
@@ -358,7 +353,6 @@ class CategoricalPolicy(Policy):
 
 
 class GumbelPolicy(CategoricalPolicy):
-
     _encoder: Encoder
     _action_size: int
     _min_logstd: float
@@ -386,56 +380,22 @@ class GumbelPolicy(CategoricalPolicy):
         deterministic: bool = False,
         with_log_prob: bool = False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-
-       # print("Policy forward!")
         dist = self.dist(x)
         if deterministic:
             picked_actions = dist.sample()
-           # print(picked_actions)
-           # picked_actions_hard = (torch.max(picked_actions, dim=-1, keepdim=True)[0] == picked_actions).float()
-           # picked_actions = (picked_actions_hard - picked_actions).detach() + picked_actions
-           # print(picked_actions.argmax(axis = 1))
-           # wandb.log({"log_picked_actions_determ":picked_actions.argmax(axis = 1)})
-            picked_actions = picked_actions.argmax(axis = 1)
-           # print(picked_actions)
+            picked_actions = picked_actions.argmax(dim=1)
         else:
             picked_actions, log_prob = dist.sample_with_log_prob()
-          #  picked_actions_hard = (torch.max(picked_actions, dim=-1, keepdim=True)[0] == picked_actions).float()
-          #  picked_actions = (picked_actions_hard - picked_actions).detach() + picked_actions
-           # print(picked_actions.argmax(axis = 1))
-          #  wandb.log({"log_picked_actions_determ":picked_actions.argmax(axis = 1)})
-
-        #    print(picked_actions)
         return (picked_actions, log_prob) if with_log_prob else picked_actions
 
-    def dist(
-        self, x: torch.Tensor
-    ) -> Union[GaussianDistribution, SquashedGaussianDistribution]:
-       # print(x)
+    def dist(self, x: torch.Tensor) -> Union[GaussianDistribution, SquashedGaussianDistribution]:
         h = self._encoder(x)
-     #   h = self._relu(h)
         h = self._fc(h)
-       # h = self._bn(h)
-      #  print(h)
         h = self.softmax(h)
-      #  print(h)
-        #print(h[0])
-        #wandb.log({"log-softmax out":h[0]})
-       # print(h.shape)
-     #   print(h.max())
-       #ь h = h4
-     #   plt.imshow()
-       # print(torch.sort(h)[:3])
-       # print(h.sum(axis = 1))
-      #  print("_------------------------------_")
-       # print(h.max())
-        return GumbelDistribution(
-            h, self.uniform_treshs
-        )
+        return GumbelDistribution(h, self.uniform_treshs)
 
     def best_action(self, x: torch.Tensor) -> torch.Tensor:
-        out =self.forward(x, deterministic=True)
-       # out = torch.argmax(out, dim=1)
+        out = self.forward(x, deterministic=True)
         return cast(torch.Tensor, out)
 
     def sample_n_with_log_prob(
@@ -443,9 +403,7 @@ class GumbelPolicy(CategoricalPolicy):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         pass
 
-    def sample_with_log_prob(
-        self, x: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def sample_with_log_prob(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         out = self.forward(x, with_log_prob=True)
         return cast(Tuple[torch.Tensor, torch.Tensor], out)
 
