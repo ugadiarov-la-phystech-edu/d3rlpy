@@ -30,9 +30,7 @@ from ...models.torch import (
 )
 from ...preprocessing import ActionScaler, RewardScaler, Scaler
 from ...torch_utility import TorchMiniBatch, hard_sync, torch_api, train_api
-#
-# import wandb
-# exp = wandb.init( project="sdac_test_cartpole_LOGPROB")
+
 
 class SACImpl(DDPGBaseImpl):
 
@@ -497,206 +495,30 @@ class SDACImpl(SACImpl):
             action, log_prob = self._policy.sample_with_log_prob(
                 batch.next_observations
             )
-            #print(log_prob.mean())
-            # exp.log({'log_prob_MEAN': log_prob.mean().item()})
-            # exp.log({'log_prob_MIN': log_prob.min().item()})
-            # exp.log({'log_prob_MAX': log_prob.max().item()})
-
             entropy = self._log_temp().exp() * log_prob
-
-            # exp.log({'entropy_MEAN':entropy.mean().item()})
-            # exp.log({'entropy_MIN': entropy.min().item()})
-            # exp.log({'entropy_MAX': entropy.max().item()})
-
             target = self._targ_q_func.compute_target(
                 batch.next_observations,
                 action,
                 reduction="min",
             )
-            # exp.log({'target_MEAN': target.mean().item()})
-            # exp.log({'target_MIN': target.min().item()})
-            # exp.log({'target_MAX': target.max().item()})
             keepdims = True
             return (target - entropy).mean(dim=1).reshape(-1,1)
 
     def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
-            assert self._q_func is not None
-            assert self._policy is not None
-            assert self._log_temp is not None
-            with torch.no_grad():
-                q_t = self._q_func(batch.observations, reduction="min")
-            log_probs = self._policy.log_probs(batch.observations)
-            probs = log_probs.exp()
-            entropy = self._log_temp().exp() * log_probs
-            #print(q_t.shape)
-           # print(batch.actions.shape)
-            one_hot = torch.zeros((len(batch.actions.long()), q_t.shape[-1]))
-            one_hot.scatter_(1, batch.actions.long().unsqueeze(1), 1)
-           # print(q_t)
-            kl_loss = self.kl_criterion(probs, one_hot)
-            loss = (probs * (entropy - q_t)).sum(dim=1).mean()
-            #print(kl_loss, loss)
-            return loss + kl_loss
+        assert self._q_func is not None
+        assert self._policy is not None
+        assert self._log_temp is not None
+        with torch.no_grad():
+            q_t = self._q_func(batch.observations, reduction="min")
+        log_probs = self._policy.log_probs(batch.observations)
+        probs = log_probs.exp()
+        entropy = self._log_temp().exp() * log_probs
+        one_hot = torch.zeros((len(batch.actions.long()), q_t.shape[-1]))
+        one_hot.scatter_(1, batch.actions.long().unsqueeze(1), 1)
+        kl_loss = self.kl_criterion(probs, one_hot)
+        loss = (probs * (entropy - q_t)).sum(dim=1).mean()
+        return loss + kl_loss
 
-        ####LAST VERSION
-#     def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
-#         assert self._policy is not None
-#         assert self._log_temp is not None
-#         assert self._q_func is not None
-#         action, log_prob = self._policy.sample_with_log_prob(batch.observations)
-#         entropy = self._log_temp().exp() * log_prob
-#       #  print(batch.observations.shape)
-#        # print(action.shape)
-#         q_t = self._q_func(batch.observations, action)
-#        # print(q_t.shape)
-#        # print(entropy.shape)
-#         entropy = entropy.reshape(-1,1)
-#      #   exit()
-#         # exp.log({'qt_MEAN_actor_loss': q_t.mean().item()})
-#         # exp.log({'qt_MIN_actor_loss': q_t.min().item()})
-#         # exp.log({'qt_MAX_actor_loss': q_t.max().item()})
-#         #
-#         # exp.log({'entropy_MEAN_actor_loss': entropy.mean().item()})
-#         # exp.log({'entropy_MIN_actor_loss': entropy.min().item()})
-#         # exp.log({'entropy_MAX_actor_loss': entropy.max().item()})
-#         #
-#         # exp.log({'temp_MEAN_actor_loss':  self._log_temp().exp().mean()})
-#         # exp.log({'temp_MIN_actor_loss':  self._log_temp().exp().min()})
-#         # exp.log({'temp_MAX_actor_loss':  self._log_temp().exp().max()})
-#         return (entropy - q_t).mean()
-
-    # def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
-    #     assert self._policy is not None
-    #     assert self._log_temp is not None
-    #     assert self._targ_q_func is not None
-    #     with torch.no_grad():
-    #         action, log_prob = self._policy.sample_with_log_prob(
-    #             batch.next_observations
-    #         )
-    #         entropy = self._log_temp().exp() * log_prob
-    #         target = self._targ_q_func.compute_target(
-    #             batch.next_observations,
-    #             action,
-    #             reduction="min",
-    #         )
-    #         return (target - entropy)
-
-    # def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
-    #     assert self._policy is not None
-    #     assert self._log_temp is not None
-    #     assert self._targ_q_func is not None
-    #     with torch.no_grad():
-    #         action, log_prob = self._policy.sample_with_log_prob(
-    #             batch.next_observations
-    #         )
-    #         entropy = self._log_temp().exp() * log_prob
-    #         target = self._targ_q_func.compute_target(
-    #             batch.next_observations,
-    #             action,
-    #             reduction="min",
-    #         )
-    #         keepdims = True
-    #         return (target - entropy).mean(dim=1).reshape(-1,1)
-    # def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
-    #     assert self._policy is not None
-    #     assert self._log_temp is not None
-    #     assert self._targ_q_funcq_func is not None
-    #     with torch.no_grad():
-    #         action, log_prob = self._policy.sample_with_log_prob(
-    #             batch.next_observations
-    #         )
-    #         entropy = self._log_temp().exp() * log_prob
-    #         target = self._targ_q_func.compute_target(
-    #             batch.next_observations,
-    #             action,
-    #             reduction="min",
-    #         )
-    #         return (target - entropy)
-
-    # def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
-    #     assert self._policy is not None
-    #     assert self._log_temp is not None
-    #     assert self._q_func is not None
-    #     action, log_prob = self._policy.sample_with_log_prob(batch.observations)
-    #     entropy = self._log_temp().exp() * log_prob
-    #     q_t = self._q_func(batch.observations, action, "min")
-    #
-    #     # print("log prob")
-    #     # print(torch.round(log_prob * 1000) / 1000)
-    #    # print("q_t")
-    #    # print(torch.round(q_t * 1000) / 1000)
-    #    #  print("entropy")
-    #    #  print(torch.round(entropy * 1000) / 1000)
-    #
-    #     return (entropy - q_t).mean()
-
-
-    # def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
-    #     assert self._policy is not None
-    #     assert self._log_temp is not None
-    #     assert self._q_func is not None
-    #     action, log_prob = self._policy.sample_with_log_prob(batch.observations)
-    #     entropy = self._log_temp().exp() * log_prob
-    #     q_t = self._q_func(batch.observations, action, "min")
-    #     return (entropy - q_t).mean()
-
-    # def _build_critic(self) -> None:
-    #     self._q_func = create_discrete_q_function(
-    #         self._observation_shape,
-    #         self._action_size,
-    #         self._critic_encoder_factory,
-    #         self._q_func_factory,
-    #         n_ensembles=self._n_critics,
-    #     )
-    # #
-    # def _build_critic_optim(self) -> None:
-    #     assert self._q_func is not None
-    #     self._critic_optim = self._critic_optim_factory.create(
-    #         self._q_func.parameters(), lr=self._critic_learning_rate
-    #     )
-    #
-    # def _build_actor_optim(self) -> None:
-    #     assert self._policy is not None
-    #     self._actor_optim = self._actor_optim_factory.create(
-    #         self._policy.parameters(), lr=self._actor_learning_rate
-    #     )
-    #
-    # # def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
-    # #     assert self._q_func is not None
-    # #     assert self._policy is not None
-    # #     assert self._log_temp is not None
-    # #     with torch.no_grad():
-    # #         q_t = self._q_func(batch.observations, reduction="min")
-    # #     log_probs = self._policy.log_probs(batch.observations)
-    # #     probs = log_probs.exp()
-    # #     entropy = self._log_temp().exp() * log_probs
-    # #
-    # #     # print(q_t)
-    # #     # print()
-    # #     # print(entropy)
-    # #     # print()
-    # #     # print(probs)
-    # #     return (probs * (entropy - q_t)).sum(dim=1).mean()
-    #
-    # def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
-    #     assert self._policy is not None
-    #     assert self._log_temp is not None
-    #     assert self._q_func is not None
-    #     with torch.no_grad():
-    #         q_t = self._q_func(batch.observations, "min")
-    #     log_prob, _ = self._policy.sample_with_log_prob(batch.observations)
-    #     probs = log_prob.exp()
-    #
-    #     entropy = self._log_temp().exp() * log_prob
-    #     out = (probs * (entropy - q_t)).sum(dim=1).mean()
-    #     # print(" ---------------------------- ")
-    #     # print((probs*1000).round()/1000)
-    #     # print((entropy*1000).round()/1000)
-    #     # print((q_t*1000).round()/1000)
-    #     # print(out)
-    #
-    #     return (probs * (entropy - q_t)).sum(dim=1).mean()
-    #
     def compute_critic_loss(
         self,
         batch: TorchMiniBatch,
