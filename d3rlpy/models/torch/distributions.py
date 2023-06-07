@@ -9,38 +9,6 @@ import numpy as np
 import datetime
 from torch.distributions.utils import probs_to_logits
 
-def p_print(data):
-    now = datetime.datetime.now()
-    if now.microsecond % 12 == 0:
-        print(data)
-    else:
-        pass
-
-def gumbel_pdf(x, loc, scale):
-    """Returns the value of Gumbel's pdf with parameters loc and scale at x .
-    """
-    # substitute
-    z = (x - loc) / scale
-
-    return (1. / scale) * (torch.exp(-(z + (torch.exp(-z)))))
-
-
-def gumbel_cdf(x, loc, scale):
-    """Returns the value of Gumbel's cdf with parameters loc and scale at x.
-    """
-    return torch.exp(-torch.exp(-(x - loc) / scale))
-
-
-def trunc_GBL(p, x):
-    threshold = p[0]
-    loc = p[1]
-    scale = p[2]
-    x1 = x[x < threshold]
-    nx2 = len(x[x >= threshold])
-    L1 = (-torch.log((gumbel_pdf(x1, loc, scale) / scale))).sum()
-    L2 = (-torch.log(1 - gumbel_cdf(threshold, loc, scale))) * nx2
-    # print x1, nx2, L1, L2
-    return L1 + L2
 
 class Distribution(metaclass=ABCMeta):
     @abstractmethod
@@ -122,12 +90,12 @@ class GaussianDistribution(Distribution):
     def std(self) -> torch.Tensor:
         return self._std
 
+
 class GumbelDistribution(Distribution):
-        def __init__(self, probs,uniform_treshs,
-                     logits=None, temperature=1):
+        def __init__(self, probs, uniform_treshs, logits=None, temperature=1):
             super().__init__()
             if logits is not None:
-                self.logits = logits
+                self._logits = logits
             self.probs = probs
             self.eps = 1e-20
             self.temperature = 1
@@ -136,28 +104,22 @@ class GumbelDistribution(Distribution):
         def sample_gumbel(self):
             U = torch.zeros_like(self.probs)
             U.uniform_(*self.uniform_treshs)
-           # exit()
             to_gumbel = -torch.log(-torch.log(U + self.eps) + self.eps)
-          #  print(to_gumbel.argmax(dim = 1))
             return to_gumbel
 
         def gumbel_softmax_sample(self, logits = None):
-            """ Draw a sample from the Gumbel-Softmax distribution. The returned sample will be a probability distribution
-            that sums to 1 across classes"""
-          #  print(torch.round(self.probs*1000)/1000)
-           # print(self.probs)
-          #  print(self.probs.argmax(dim = 1))
+            """
+            Draw a sample from the Gumbel-Softmax distribution.
+            The returned sample will be a probability distribution
+            that sums to 1 across classes
+            """
             y = self.probs + self.sample_gumbel()
-          #  print(y.argmax(dim = 1))
             out = torch.softmax(y / self.temperature, dim=-1)
-          #  print(out.argmax(dim = 1))
-        #    print(torch.round(out*1000)/1000)
             return out
 
         def sample_with_log_prob(self) -> Tuple[torch.Tensor, torch.Tensor]:
             y = self.rsample()
             lp = self.log_prob()
-          #  print(lp)
             return y, lp
 
         def hard_gumbel_softmax_sample(self):
@@ -186,22 +148,15 @@ class GumbelDistribution(Distribution):
 
         @property
         def logits(self):
-          #  y = self.sample()
-            #y = self.sample().max(axis = 1).values
             return self.probs#.max(axis = 1).values.reshape(-1,1)
 
         @property
         def logitss(self):
             y = self.sample().max(axis = 1).values
-         #   print(y.shape)
             return torch.log(y + self.eps)
 
         def log_prob(self):
-           # y = self.sample().max(axis = 1).values
-         #   print(y.shape)
-            #raise Exception(self.probs)
-            return  self.probs#.max(axis = 1).values.reshape(-1,1)#.detach() #torch.log(y + self.eps)
-
+            return  self.probs
 
 
 class SquashedGaussianDistribution(Distribution):
@@ -257,3 +212,26 @@ class SquashedGaussianDistribution(Distribution):
     @property
     def std(self) -> torch.Tensor:
         return self._std
+
+
+def gumbel_pdf(x, loc, scale):
+    """Returns the value of Gumbel's pdf with parameters loc and scale at x ."""
+    # substitute
+    z = (x - loc) / scale
+    return (1. / scale) * (torch.exp(-(z + (torch.exp(-z)))))
+
+
+def gumbel_cdf(x, loc, scale):
+    """Returns the value of Gumbel's cdf with parameters loc and scale at x."""
+    return torch.exp(-torch.exp(-(x - loc) / scale))
+
+
+def trunc_GBL(p, x):
+    threshold = p[0]
+    loc = p[1]
+    scale = p[2]
+    x1 = x[x < threshold]
+    nx2 = len(x[x >= threshold])
+    L1 = (-torch.log((gumbel_pdf(x1, loc, scale) / scale))).sum()
+    L2 = (-torch.log(1 - gumbel_cdf(threshold, loc, scale))) * nx2
+    return L1 + L2
