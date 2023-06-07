@@ -13,7 +13,7 @@ def _reduce_ensemble(
         return y.min(dim=dim).values
     elif reduction == "max":
         return y.max(dim=dim).values
-    elif True: #reduction == "mean":
+    elif reduction == "mean":
         return y.mean(dim=0)
     elif reduction == "none":
         return y
