@@ -529,7 +529,7 @@ class SDACImpl(SACImpl):
     def _sample_action(self, x: torch.Tensor) -> torch.Tensor:
         assert self._policy is not None
         actions = []
-        for proba in self._policy.sample(x):
+        for proba in self._policy.sample(x).cpu().numpy():
             action = np.random.choice(a=proba.shape[0], p=proba)
             actions.append(action)
 
