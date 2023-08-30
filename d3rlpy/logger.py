@@ -9,6 +9,7 @@ import numpy as np
 import structlog
 from tensorboardX import SummaryWriter
 from typing_extensions import Protocol
+import wandb
 
 
 class _SaveProtocol(Protocol):
@@ -143,6 +144,10 @@ class D3RLPyLogger:
                 name=self._experiment_name,
                 global_step=epoch,
             )
+
+        record = dict(metrics)
+        record['global_step'] = step
+        wandb.log(record)
 
         # initialize metrics buffer
         self._metrics_buffer = {}
