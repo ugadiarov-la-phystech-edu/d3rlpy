@@ -505,7 +505,7 @@ class SDACImpl(SACImpl):
         log_probs = self._policy.log_probs(batch.observations)
         probs = log_probs.exp()
         entropy = self._log_temp().exp() * log_probs
-        one_hot = torch.zeros((len(batch.actions.long()), q_t.shape[-1]))
+        one_hot = torch.zeros((len(batch.actions.long()), q_t.shape[-1]), device=batch.actions.device)
         one_hot.scatter_(1, batch.actions.long().unsqueeze(1), 1)
         kl_loss = self.kl_criterion(probs, one_hot)
         loss = (probs * (entropy - q_t)).sum(dim=1).mean()
