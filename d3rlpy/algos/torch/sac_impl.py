@@ -525,3 +525,12 @@ class SDACImpl(SACImpl):
             terminals=batch.terminals,
             gamma=self._gamma ** batch.n_steps,
         )
+
+    def _sample_action(self, x: torch.Tensor) -> torch.Tensor:
+        assert self._policy is not None
+        actions = []
+        for proba in self._policy.sample(x):
+            action = np.random.choice(a=proba.shape[0], p=proba)
+            actions.append(action)
+
+        return np.asarray(actions)
