@@ -3,6 +3,7 @@ import math
 import numpy as np
 import torch
 from torch import nn
+from torch.distributions import Categorical
 from torch.optim import Optimizer
 from typing import Optional, Sequence, Tuple
 
@@ -528,9 +529,6 @@ class SDACImpl(SACImpl):
 
     def _sample_action(self, x: torch.Tensor) -> torch.Tensor:
         assert self._policy is not None
-        actions = []
-        for proba in self._policy.sample(x).cpu().numpy():
-            action = np.random.choice(a=proba.shape[0], p=proba)
-            actions.append(action)
-
-        return np.asarray(actions)
+        probs = self._policy.sample(x)
+        m = Categorical(probs=probs)
+        return m.sample()
